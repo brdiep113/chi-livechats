@@ -1,0 +1,62 @@
+---
+title: "Survival Analysis"
+output: html_document
+date: "2024-12-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(survival)
+library(caret)
+```
+
+
+```{r survival analysis}
+data_intervals <- read_csv("data/survival_analysis_intervals.csv")
+
+cox_model <- coxph(Surv(start_time, end_time, status) ~ 
+                     affiliation +
+                     gender +
+                     duration +
+                     income +
+                     income:start_time + 
+                     affiliation:start_time +
+                     members +
+                     members:start_time +
+                     users +
+                     users:start_time,
+                    cluster=data_intervals$VTuber,
+                    data=data_intervals)
+summary(cox_model)
+cox.zph(cox_model)
+
+set.seed(42)
+folds <- groupKFold(data_intervals$VTuber, k=5)
+cindexes <- c()
+for (k in 1:5) {
+  print(k)
+  train_idx <- folds[[k]]
+  X <- data_intervals[train_idx, ]
+  y <- data_intervals[-train_idx, ]
+  
+  model <- coxph(Surv(start_time, end_time, next_status) ~ 
+                     affiliation +
+                     gender +
+                     duration +
+                     income +
+                     income:time +
+                     members +
+                     members:time +
+                     users +
+                     users:time +
+                     affiliation:time,
+                    data=X)
+  cindex <- concordance(model, newdata=y)$concordance
+  cindexes <- c(cindexes, cindex)
+}
+
+mean(cindexes)
+var(cindexes)
+```
+

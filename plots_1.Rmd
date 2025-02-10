@@ -1,0 +1,614 @@
+---
+title: "Plots_and_Analysis"
+output: html_document
+date: "2024-12-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(lubridate)
+```
+
+```{r data_processing}
+obs_intervals <- read_csv("data/obs_intervals.csv")
+```
+
+## Plots
+
+```{r Affiliation CDF}
+x <- obs_intervals %>%
+  group_by(VTuber) %>%
+  summarise(
+    total_income = max(total_income),
+    affiliation = first(affiliation)
+    ) %>%
+  ungroup()
+
+p <- ggplot(x, aes(x=total_income, color=affiliation)) +
+      stat_ecdf(size=2) +
+      scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 0.01),
+                         breaks = c(0, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000, 10**7), 
+                         minor_breaks=NULL,
+                         limits = c(-0.0001, 10**7),
+                         labels = c(expression(0), expression(10^-1), 
+                                    expression(10^0), expression(10^1),
+                                    expression(10^2), expression(10^3),
+                                    expression(10^4), expression(10^5),
+                                    expression(10^6), expression(10^7))
+                         ) +
+    scale_color_manual(
+    guide = "legend",
+    name = "VTuber Affiliation",
+    labels = c("Large affiliation", "Independent", "Other Affiliation"),
+    values = c("#F8766D", "#7CAE00", "#C77CFF")
+    ) + 
+      # scale_x_continuous(breaks = seq(1, 10), labels = c("-2", "-1.5", "-1", "-0.5", "0", "0.5", "1", "1.5", "2", "2.5")) + 
+      labs(x = "Total Received Payment (pseudo-log Scale)", y = "Cumulative Probability", color="VTuber Affiliation") +
+      # xlim(c(0, 7)) +
+      theme_bw() +
+      theme(legend.position = c(0.2, 0.70),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank())
+      # ggtitle("CDF of VTuber Payments by Company")
+p
+```
+
+```{r cumulative_income}
+cdf <- read_csv("data/cumulative_income.csv")
+p <- ggplot(cdf, aes(x = year_month, y = cumulative_income, color=Affiliation)) +
+  geom_smooth(size=1) +
+  labs(x = "Date", y = "Cumulative income (/mil $USD)") +
+  scale_y_continuous(breaks = c(0, 1e+07, 2e+07, 3e+07, 4e+07), labels = c("0", "10", "20", "30", "40")) +
+    scale_colour_manual(
+    guide = "legend",
+    name = "VTuber Affiliation",
+    # labels = c("hololive","Other affiliations", "NIJISANJI", "Independent"),
+    values = c("hololive"="#E69F00", "NIJISANJI"="#56B4E9", 
+               "Other affiliations"="#009E73", "Independent"="#F5C710")
+    ) +
+  theme_bw() +
+      theme(legend.position = c(0.2, 0.80),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank()) +
+  # ggtitle("Cumulative Income By Affiliations") +
+  theme(legend.position = c(0.2, 0.65))
+p
+```
+
+```{r currency_dist}
+currency_comp <- read_csv("data/currency_dist_over_time.csv") %>%
+  mutate(date = lubridate::ym(year_month)) %>%
+  filter(date >= "2018-09-01")
+currency_comp$currency <- factor(currency_comp$currency, levels = c("AUD", "CAD", "EUR",
+                                                         "GBP", "HKD", "JPY", "KRW",
+                                                         "NT$", "SGD", "USD", "Other"))
+
+
+p <- ggplot(data = currency_comp, aes(x = date, y = usd_value, fill = currency)) +
+  ggstream::geom_stream(type = "proportional", sorting = c("onset"), color="black") +
+  scale_x_date(labels = date_format("%Y"), date_breaks="1 year") +
+  scale_fill_manual(name = "Currency", values = 
+                       c("AUD" = "#9F0162",
+                         "CAD" = "#009F81",
+                         "EUR" = "#FF5AAF",
+                         "GBP" = "#00FCCF",
+                         "HKD" = "#8400CD", 
+                         "JPY" = "#008DF9",
+                         "KRW" = "#00C2F9",
+                         "NT$" = "#FFB2FD",
+                         "USD" = "#A40122",
+                         "SGD" = "#E20134",
+                         "Other" = "#FFC33B")) +
+  labs(x = "Date", y = "Proportion of All Income", fill = "Currency") +
+  theme_bw() +
+  theme(
+    # legend.position = "none",
+    axis.text.x=element_text(angle = -45, hjust = 0),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank()
+    )
+  theme(axis.text.x = element_text(angle = -45))
+p
+```
+
+```{r currency distributions}
+hololive = c("hololive", "hololive Indonesia", "hololive ENGLISH", "hololive English", "HOLOSTARS")
+nijisanji = c("NIJISANJI", "NIJISANJI EN", "Nijisanji", "NIJISANJI English")
+affils = c("hololive", "NIJISANJI", "Independent")
+
+relabel_dict <- c("Upd8" = "upd8", ".LIVE" = ".live", 
+                  "Sarai family" = "Independent",
+                  "OVERIDEA" = "Overidea",
+                  "Nijigen Project" = "NIJIGEN Project",
+                  "Kizuna AI株式会社" = "Kizuna AI Inc.",
+                  "Kitsune Café" = "Kitsune Cafe",
+                  "Kigi Studio" = "KIGI:STUDIO",
+                  "Non-affiliated/Individual" = "Independent",
+                  "NIJISANJI NETWORKS" = "NIJISANJI",
+                  "NIJISANJI NETWORK" = "NIJISANJI",
+                  "Procued: Independently" = "Independent",
+                  "production kawaii" = "kawaii",
+                  "Kawaii" = "kawaii",
+                  "Indenpendent" = "Independent",
+                  "Indepdent" = "Independent",
+                  "Independent (Active)" = "Independent",
+                  "Independent (formerly)" = "Independent",
+                  "Independent (Current)" = "Independent",
+                  "Independent (current)" = "Independent",
+                  "Independent Vtuber" = "Independent",
+                  "Independent VTuber" = "Independent",
+                  "Independently" = "Independent",
+                  "Independient" = "Independent",
+                  "Indie" = "Independent",
+                  "Independent (VBoomers & VZoomers Club)" = "Independent",
+                  "Independent (Managed by \"The Council\")" = "Independent",
+                  "idol corporation" = "idol Corp",
+                  "holostars" = "HOLOSTARS",
+                  "Hanalive (Vtuber group TBA)" = "Hanalive",
+                  "FuwaTopia" = "Fuwatopia",
+                  "Fuwatopia (formerly)" = "Fuwatopia",
+                  "Doki Live (formerly)" = "Doki Live",
+                  "Cant even leave her house without Seizures (Independent)" = "Independent",
+                  "Amaryllis (former)" = "Amaryllis",
+                  ", Upd8" = "upd8",
+                  "7th Colors Project(formerly)" = "7th Colors Project",
+                  "541 E&C (formerly)" = "541 E&C",
+                  "「IGNITE」" = "IGNITE PROJECT",
+                  "Acclaim(Former/Dissolved)" = "Acclaim",
+                  "VANOBYTE (formerly)" = "VanoByte",
+                  "PPNO VTubers (previously)" = "PPNO",
+                  "None" = "Independent",
+                  "Makaidoll (Previously)" = "Makaidoll"
+                  )
+drop_affiliations <- c("Sharing the Channel with Ojiki-chan",
+                       "Sharing the Channel with Reiny",
+                       "'CEOtuber'",
+                       "(formerly)",
+                       "N/A"
+                       )
+
+currency_dist <- read_csv("data/affiliation_currencies.csv") %>%
+  mutate(Affiliation = if_else(Affiliation %in% names(relabel_dict),
+                               relabel_dict[Affiliation], Affiliation),
+         Affiliation = ifelse(Affiliation %in% hololive, "hololive", Affiliation),
+         Affiliation = ifelse(Affiliation %in% nijisanji, "NIJISANJI", Affiliation),
+         Affiliation = ifelse(Affiliation %in% c("Virtual eSports Project", "VSPO!"), "VSPO!", Affiliation)) %>%
+  filter(Affiliation %in% c("NIJISANJI", "hololive", "774 inc.", "VSPO!", "NoriPro", ".live", "VShojo", "Neo-Porte", "Re:AcT", "Propro Production"))
+
+currency_dist$Affiliation <- as.factor(currency_dist$Affiliation)
+currency_dist$Affiliation <- fct_relevel(currency_dist$Affiliation, "NIJISANJI", "hololive", "774 inc.", "VSPO!", "NoriPro", ".live", "VShojo", "Neo-Porte", "Re:AcT", "Propro Production")
+
+f <- ggplot(currency_dist, aes(x = Affiliation, y = usd_value, fill = currency)) +
+  geom_bar(position="fill", stat="identity") +
+  scale_fill_manual(name = "Currency", values = 
+                       c("AUD" = "#9F0162",
+                         "CAD" = "#009F81",
+                         "EUR" = "#FF5AAF",
+                         "GBP" = "#00FCCF",
+                         "HKD" = "#8400CD", 
+                         "JPY" = "#008DF9",
+                         "KRW" = "#00C2F9",
+                         "NT$" = "#FFB2FD",
+                         "USD" = "#A40122",
+                         "SGD" = "#E20134",
+                         "Other" = "#FFC33B")) +
+  labs(x = "Affiliation", y = "Proportion", fill = "Currency") +
+  theme_bw() +
+  theme(
+    # legend.position = "none",
+    axis.text.x=element_text(angle = -45, hjust = 0),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank()
+    )
+f
+
+currency_dist <- read_csv("D:/vtuber_currencies.csv") %>%
+  filter(VTuber %in% c("Kiryu_Coco", "Kuzuha", "Usada_Pekora", "Fuwa_Minato", "Houshou_Marine")) %>%
+  mutate(VTuber = ifelse(VTuber == "Kiryu_Coco", "Kiryu Coco", VTuber),
+         VTuber = ifelse(VTuber == "Kuzuha", "Kuzuha", VTuber),
+         VTuber = ifelse(VTuber == "Usada_Pekora", "Usada Pekora", VTuber),
+         VTuber = ifelse(VTuber == "Fuwa_Minato", "Fuwa Minato", VTuber),
+         VTuber = ifelse(VTuber == "Houshou_Marine", "Houshou Marine", VTuber))
+
+currency_dist$VTuber <- as.factor(currency_dist$VTuber)
+currency_dist$VTuber <- fct_relevel(currency_dist$VTuber, "Kiryu Coco", "Kuzuha", "Usada Pekora", "Fuwa Minato", "Houshou Marine")
+# levels=c("NIJISANJI", "hololive", "774 inc.", "VSPO!", "NoriPro", ".live", "VShojo", "Neo-Porte", "Re:AcT", "Propro Production"))
+
+f <- ggplot(currency_dist, aes(x = VTuber, y = usd_value, fill = currency)) +
+  geom_bar(position="fill", stat="identity") +
+  scale_fill_manual(name = "Currency", values = 
+                       c("AUD" = "#9F0162",
+                         "CAD" = "#009F81",
+                         "EUR" = "#FF5AAF",
+                         "GBP" = "#00FCCF",
+                         "HKD" = "#8400CD", 
+                         "JPY" = "#008DF9",
+                         "KRW" = "#00C2F9",
+                         "NT$" = "#FFB2FD",
+                         "USD" = "#A40122",
+                         "SGD" = "#E20134",
+                         "Other" = "#FFC33B")) +
+  labs(x = "VTuber", y = "Proportion", fill = "Currency") +
+  theme_bw() +
+  theme(
+    # legend.position = "none",
+    axis.text.x=element_text(angle = -45, hjust = 0),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank()
+    )
+f
+```
+
+```{r vtuber total income by agencies}
+margin_spacer <- function(x) {
+  # where x is the column in your dataset
+  left_length <- nchar(levels(factor(x)))[1]
+  if (left_length > 8) {
+    return((left_length - 8) * 4)
+  }
+  else
+    return(0)
+}
+
+cdf_top_n <- read_csv("data/VTuber_total_income.csv") %>%
+   mutate(Affiliation = if_else(Affiliation %in% names(relabel_dict),
+                               relabel_dict[Affiliation], Affiliation),
+         Affiliation = ifelse(Affiliation %in% hololive, "hololive", Affiliation),
+         Affiliation = ifelse(Affiliation %in% nijisanji, "NIJISANJI", Affiliation)) %>%
+  mutate(VTuber = gsub("(?<!^)_(?!_)", " ", VTuber, perl = TRUE)) %>%
+  arrange(desc(total_income)) %>%
+  head(25)
+
+
+q <- ggplot(cdf_top_n, aes(x = reorder(VTuber, -total_income), y = total_income, color = Affiliation, fill = Affiliation)) +
+  geom_bar(width=0.5, stat = "identity", position = position_dodge2(width=0.5)) +
+  labs(x = "VTuber", y = "Income (/mil $USD)") +
+  # scale_y_log10() +
+  scale_y_continuous(breaks = c(0, 500000, 1000000, 1500000, 2000000),
+                     labels = c("0", "0.5", "1", "1.5", "2"),
+                    limits = c(0, 2200000)) +
+  scale_colour_manual(    
+    guide = "legend",
+    name = "VTuber Affiliation",
+    labels = c("hololive", "NIJISANJI", "Other Affiliation", "Independent"),
+    values = c("#E69F00", "#56B4E9", "#009E73", "#F5C710")
+    ) +
+  scale_fill_manual(    
+    guide = "legend",
+    name = "VTuber Affiliation",
+    labels = c("hololive", "NIJISANJI", "Other Affiliation", "Independent"),
+    values = c("#E69F00", "#56B4E9", "#009E73", "#F5C710")
+    ) +
+  theme_bw() +
+  theme(
+    legend.position = c(0.5, 0.92),
+    legend.direction="horizontal",
+    legend.key.size=unit(2, units = "mm"),
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=8),
+    axis.text.x=element_text(angle = -75, hjust = 0),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+    plot.margin = margin(t = 10, l = 10, r = 20 + margin_spacer(cdf_top_n$VTuber)))
+q
+
+
+q <- ggplot(cdf_top_n %>% filter(Affiliation == "Independent") %>%
+               mutate(VTuber = ifelse(VTuber == "Kayamori Emma - Emma Chouette", "Kayamori Emma", VTuber)) %>% head(25), aes(x = reorder(VTuber, -total_income), y = total_income, color = Affiliation, fill = Affiliation)) +
+  geom_bar(width=0.5, stat = "identity", position = position_dodge2(width=0.5)) +
+  labs(x = "VTuber", y = "Income (/mil $USD)") +
+  # scale_y_log10() +
+  scale_y_continuous(breaks = c(0, 500000, 1000000, 1500000, 2000000),
+                     labels = c("0", "0.5", "1", "1.5", "2"),
+                    limits = c(0, 2200000)) +
+  scale_colour_manual(    
+    guide = "legend",
+    name = "VTuber Affiliation",
+    labels = c("hololive", "NIJISANJI", "Other Affiliation", "Independent"),
+    values = c("#E69F00", "#56B4E9", "#009E73", "#F5C710")
+    ) +
+  scale_fill_manual(    
+    guide = "legend",
+    name = "VTuber Affiliation",
+    labels = c("hololive", "NIJISANJI", "Other Affiliation", "Independent"),
+    values = c("#E69F00", "#56B4E9", "#009E73", "#F5C710")
+    ) +
+  theme_bw() +
+  theme(
+    legend.position = c(0.5, 0.90),
+    legend.direction="horizontal",
+    legend.key.size=unit(2, units = "mm"),
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=8),
+    axis.text.x=element_text(angle = -75, hjust = 0),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+    plot.margin = margin(t = 10, l = 10, r = 20 + margin_spacer(cdf_top_n$VTuber)))
+q
+
+
+affil_top_n <- read_csv("data/VTuber_total_income.csv") %>%
+   mutate(Affiliation = if_else(Affiliation %in% names(relabel_dict),
+                               relabel_dict[Affiliation], Affiliation),
+         Affiliation = ifelse(Affiliation %in% hololive, "hololive", Affiliation),
+         Affiliation = ifelse(Affiliation %in% nijisanji, "NIJISANJI", Affiliation),
+         Affiliation = ifelse(Affiliation %in% c("Virtual eSports Project", "VSPO!"), "VSPO!", Affiliation)) %>%
+  mutate(VTuber = gsub("(?<!^)_(?!_)", " ", VTuber, perl = TRUE)) %>%
+  group_by(Affiliation) %>%
+  summarise(total_income = sum(total_income)) %>%
+  arrange(desc(total_income)) %>%
+  head(11) %>%
+  filter(Affiliation != "Independent")
+
+q <- ggplot(affil_top_n, aes(x = reorder(Affiliation, -total_income), y = total_income,  color="#3686BC", fill="#3686BC")) +
+  geom_bar(width=0.5, stat = "identity", position = position_dodge2(padding=0.1)) +
+  labs(x = "Affiliation", y = "Income (/mil $USD)") +
+  scale_y_continuous(breaks = c(0, 1e+07, 2e+07, 3e+07, 4e+07), labels = c("0", "10", "20", "30", "40")) +
+  # scale_y_log10() +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    legend.direction="horizontal",
+    legend.key.size=unit(2, units = "mm"),
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=8),
+    axis.text.x=element_text(angle = -75, hjust = 0),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+    plot.margin = margin(t = 10, l = 10, r = 20 + margin_spacer(cdf_top_n$Affiliation)))
+q
+```
+
+```{r gini}
+gini1 <- read_csv("data/gini.csv")
+gini1 <- gini1 %>%
+  filter(gini_index > 0.5)
+ggplot() +
+  geom_line(data=gini1, aes(x=year_month, y=gini_index, color="6 month window")) +
+  # geom_point(data=gini6, aes(x=year_month, y=gini, color="6 month window"),
+  #                 shape = 21, size = 1.5, fill = "#0F5132") +
+  scale_color_manual(name = "Window Size", values = 
+                       c("1 month window" = "#0F5132",
+                         "3 month window" = "#E69F00",
+                         "6 month window" = "#0F5132",
+                         "12 month window" = "#CC79A7"),
+                     guide = "none") +
+  labs(x = "Date", y="Gini Coefficient") +
+  theme_bw() +
+  theme(legend.position="none",
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank()) # +
+  # ggtitle("Gini Coefficient of VTuber Income Over Time")
+```
+
+```{r vtuber_session_history}
+## Kamito history
+csv_path <- str_interp("data/vtubers/Kamito.csv")
+df <- read_csv(csv_path) %>%
+  group_by(timestamp) %>%
+  filter(timestamp == max(timestamp)) %>%
+  ungroup()
+
+ggplot(df, aes(x=timestamp)) +
+  # geom_line(aes(y=total_payment, color="Payments")) +
+  geom_point(aes(y=total_payment, color="Payments"),
+             shape = 21, size=0.5, fill = "#CC79A7") +
+  geom_segment(aes(x=timestamp, y=total_payment, xend=timestamp,yend=total_payment-total_payment, color="Payments")) + 
+  scale_color_manual(name = "Engagement Stats", values =
+                       c("Comment Count" = "#E69F00",
+                         "User Count" = "#56B4E9",
+                         "Superchat Count" = "#CC79A7",
+                         "Payments" = "#009E73")) +
+  labs(x = "Date", y="Payment ($ USD)") +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+
+## Usada Pekora Income
+csv_path <- str_interp("data/vtubers/Usada_Pekora.csv")
+df <- read_csv(csv_path) %>%
+  group_by(timestamp) %>%
+  filter(timestamp == max(timestamp)) %>%
+  ungroup()
+
+ggplot(df, aes(x=timestamp)) +
+  # geom_line(aes(y=total_payment, color="Payments")) +
+  geom_point(aes(y=total_payment, color="Payments"),
+             shape = 21, size=0.5, fill = "#CC79A7") +
+  geom_segment(aes(x=timestamp, y=total_payment, xend=timestamp,yend=total_payment-total_payment, color="Payments")) + 
+  scale_color_manual(name = "Engagement Stats", values =
+                       c("Comment Count" = "#E69F00",
+                         "User Count" = "#56B4E9",
+                         "Superchat Count" = "#CC79A7",
+                         "Payments" = "#009E73")) +
+  labs(x = "Date", y="Payment ($ USD)") +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+
+## Kson income
+csv_path <- str_interp("data/vtubers/KSon.csv")
+df <- read_csv(csv_path) %>%
+  group_by(timestamp) %>%
+  filter(timestamp == max(timestamp)) %>%
+  ungroup()
+
+ggplot(df, aes(x=timestamp)) +
+  # geom_line(aes(y=total_payment, color="Payments")) +
+  geom_point(aes(y=total_payment, color="Payments"),
+             shape = 21, size=0.5,  fill = "#CC79A7") +
+  geom_segment(aes(x=timestamp, y=total_payment, xend=timestamp,yend=total_payment-total_payment, color="Payments")) + 
+  scale_color_manual(name = "Engagement Stats", values =
+                       c("Comment Count" = "#E69F00",
+                         "User Count" = "#56B4E9",
+                         "Superchat Count" = "#CC79A7",
+                         "Payments" = "#009E73")) +
+  labs(x = "Date", y="Payment ($ USD)") +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+
+## Gawr Gura income
+csv_path <- str_interp("data/vtubers/Gawr_Gura.csv")
+df <- read_csv(csv_path) %>%
+  group_by(timestamp) %>%
+  filter(timestamp == max(timestamp)) %>%
+  ungroup()
+
+ggplot(df, aes(x=timestamp)) +
+  # geom_line(aes(y=total_payment, color="Payments")) +
+  geom_point(aes(y=total_payment, color="Payments"),
+             shape = 21,  size=0.5, fill = "#CC79A7") +
+  geom_segment(aes(x=timestamp, y=total_payment, xend=timestamp,yend=total_payment-total_payment, color="Payments")) + 
+  scale_color_manual(name = "Engagement Stats", values =
+                       c("Comment Count" = "#E69F00",
+                         "User Count" = "#56B4E9",
+                         "Superchat Count" = "#CC79A7",
+                         "Payments" = "#009E73")) +
+  labs(x = "Date", y="Payment ($ USD)") +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+```
+
+```{r stream activity analysis}
+all_df <- read_csv("data/sample_stream_types.csv") %>%
+  mutate(stream_type = ifelse(stream_type == "hobby", "chatting", stream_type),
+         stream_type = ifelse(stream_type == "watch", "chatting", stream_type))
+count_df <- all_df %>%
+  select(vtuber, stream_type, superchat_count, total_payment) %>%
+  # complete(stream_type, vtuber) %>%
+  # replace_na(list(superchat_count = 0, total_payment = 0)) %>%
+  group_by(stream_type, vtuber) %>%
+  summarise(count = n(),
+            sum_payments = sum(total_payment),
+            sum_superchats = sum(superchat_count),
+            avg_payment = sum_payments/ count,
+            avg_superchats = sum_superchats / count)
+
+count_df <- count_df %>% 
+  ungroup() %>%
+  complete(stream_type, vtuber, fill = list(count = 0,
+                                            sum_payments = 0,
+                                            sum_superchats = 0,
+                                            avg_payment = 0,
+                                            avg_superchats = 0))
+
+collab_df <- all_df %>%
+  group_by(is_collab, vtuber) %>%
+  summarise(count = n(),
+            sum_payments = sum(total_payment),
+            sum_superchats = sum(superchat_count),
+            avg_payment = sum_payments/ count,
+            avg_superchats = sum_superchats / count)
+
+ggplot(collab_df, aes(x = reorder(vtuber, -sum_superchats), y = avg_superchats, fill = is_collab)) +
+  geom_bar(position=position_dodge2(preserve="single"), stat="identity") +
+  scale_fill_manual(name = "Stream Type", 
+                    values = c("FALSE" = "#0091D5",
+                               "TRUE" = "#EA6A47"),
+                    label = c("FALSE" = "Solo",
+                              "TRUE" = "Collab")) +
+  labs(x = "VTuber",
+       y = "Average Superchats per Session") +
+  scale_x_discrete(labels = c("Gawr Gura", "Himemori Luna", "Obaachan", "Aomiya Yozuri",
+                              "Osaki Cherry", "Karrot Keromi", "Akatsuki Yume",
+                              "Etna Crimson", "Akizuki Yueno", "Amano Serafi")) +
+  theme(axis.text.x = element_text(angle=45, hjust=1),
+        legend.position = c(0.8, 0.7),
+        axis.title.x = element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.y = element_text(size=8),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+
+superchats <- count_df %>%
+  group_by(vtuber) %>%
+  mutate(total_superchats = sum(sum_superchats)) %>%
+  ungroup() %>%
+  group_by(vtuber, stream_type) %>%
+    mutate(
+      prop_superchats = (sum_superchats / total_superchats) * 100,
+      prop_superchats = replace_na(prop_superchats, 0))
+
+ggplot(superchats, aes(x = vtuber, y = prop_superchats, fill = stream_type)) +
+  geom_bar(position=position_dodge2(preserve="single"), stat="identity") +
+  scale_fill_manual(name = "Stream Type", 
+                     values = c("gaming" = "#0F5132",
+                                "chatting" = "#E69F00",
+                                "singing" = "#56B4E9"),
+                    label = c("gaming" = "Gaming",
+                              "chatting" = "Chatting",
+                              "singing" = "Music")) +
+  labs(x = "VTuber",
+       y = "% of Received Superchats") +
+  scale_x_discrete(labels = c("Akatsuki Yume", "Akizuki Yueno", "Amano Serafi",
+                              "Aomiya Yozuri", "Etna Crimson", "Gawr Gura",
+                              "Himemori Luna", "Karrot Keromi", "Obaachan",
+                              "Osaki Cherry")) +
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle=-75, hjust=0.1),
+        axis.title.x = element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.y = element_text(size=8),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+
+prop <- count_df %>%
+  group_by(vtuber) %>%
+  mutate(total_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(percentage = (count / total_count) * 100)
+
+ggplot(prop, aes(x = vtuber, y = percentage, fill = stream_type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "VTuber", y = "% of Streams", fill = "Stream Type") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  scale_fill_manual(name = "Stream Type", 
+                     values = c("gaming" = "#0F5132",
+                                "chatting" = "#E69F00",
+                                "singing" = "#56B4E9"),
+                    labels = c("gaming" = "Gaming", 
+                               "chatting" = "Chatting", 
+                               "singing" = " Music")) +
+  scale_x_discrete(labels = c("Akatsuki Yume", "Akizuki Yueno", "Amano Serafi",
+                              "Aomiya Yozuri", "Etna Crimson", "Gawr Gura",
+                              "Himemori Luna", "Karrot Keromi", "Obaachan",
+                              "Osaki Cherry")) +
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle=-75, hjust=0.1),
+        axis.title.x = element_text(size=10),
+        axis.title.y = element_text(size=10),
+        axis.text.y = element_text(size=8),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+```
+
